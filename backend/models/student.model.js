@@ -29,11 +29,6 @@ const StudentSchema = new Schema(
       ref: 'Course',
       required: true,
     },
-    batchId: {
-      type: Schema.Types.ObjectId,
-      ref: 'Batch',
-      required: true,
-    },
     feesTotal: {
       type: Number,
       required: true,

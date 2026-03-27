@@ -74,13 +74,13 @@ export async function getPaymentHistoryByStudent(studentId, requester = null) {
       throw new AppError('Unauthorized', { statusCode: 401 });
     }
 
-    student = await Student.findOne({ email: requesterEmail }).exec();
+    student = await Student.findOne({ email: requesterEmail }).populate('courseId', 'courseName duration fees').exec();
     if (!student) {
       throw new AppError('Student not found', { statusCode: 404 });
     }
   } else {
     validateObjectId(studentId, 'studentId');
-    student = await Student.findById(studentId).exec();
+    student = await Student.findById(studentId).populate('courseId', 'courseName duration fees').exec();
     if (!student) {
       throw new AppError('Student not found', { statusCode: 404 });
     }
@@ -96,6 +96,23 @@ export async function getPaymentHistoryByStudent(studentId, requester = null) {
   const feesTotal = student.feesTotal ?? 0;
   const pendingFees = Math.max(0, feesTotal - paidTotal);
 
-  return { student: { id: student._id.toString(), name: student.name, email: student.email }, payments, paidTotal, pendingFees };
+  return {
+    student: {
+      id: student._id.toString(),
+      name: student.name,
+      email: student.email,
+      course: student.courseId
+        ? {
+            id: student.courseId._id?.toString?.() ?? '',
+            courseName: student.courseId.courseName ?? '',
+            duration: student.courseId.duration ?? null,
+            fees: student.courseId.fees ?? null,
+          }
+        : null,
+    },
+    payments,
+    paidTotal,
+    pendingFees,
+  };
 }
 

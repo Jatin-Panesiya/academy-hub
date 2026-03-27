@@ -15,7 +15,11 @@ export default function ProtectedRoute({ roles }) {
   }
 
   if (roles?.length && !roles.includes(user?.role)) {
-    return <Navigate to="/" replace />;
+    // If the user is authenticated but trying to access a route for the wrong role,
+    // send them to the correct dashboard instead of "/".
+    const destination =
+      user?.role === 'admin' ? '/admin' : user?.role === 'student' ? '/student' : '/login';
+    return <Navigate to={destination} replace />;
   }
 
   if (user?.mustChangePassword && location.pathname !== '/reset-password') {

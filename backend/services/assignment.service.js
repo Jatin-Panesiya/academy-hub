@@ -1,7 +1,7 @@
 import mongoose from 'mongoose';
 
 import { AppError } from '../utils/appError.js';
-import { Assignment, Batch } from '../models/index.js';
+import { Assignment, Course, Student } from '../models/index.js';
 
 function validateObjectId(id, fieldName) {
   if (!mongoose.Types.ObjectId.isValid(id)) {
@@ -18,37 +18,63 @@ function parseDate(dateRaw, fieldName) {
 }
 
 export async function createAssignment(payload) {
-  const { title, description, batchId, deadline } = payload ?? {};
+  const { title, description, deadline, courseId } = payload ?? {};
 
-  if (!title || !description || !batchId || !deadline) {
-    throw new AppError('Missing required fields: title, description, batchId, deadline', { statusCode: 400 });
+  if (!title || !description || !deadline || !courseId) {
+    throw new AppError('Missing required fields: title, description, deadline, courseId', { statusCode: 400 });
   }
 
-  validateObjectId(batchId, 'batchId');
   parseDate(deadline, 'deadline');
+  validateObjectId(courseId, 'courseId');
 
-  const batch = await Batch.findById(batchId).exec();
-  if (!batch) {
-    throw new AppError('Batch not found', { statusCode: 404 });
+  const courseExists = await Course.exists({ _id: courseId });
+  if (!courseExists) {
+    throw new AppError('Course not found', { statusCode: 404 });
   }
 
   const assignment = await Assignment.create({
     title: String(title).trim(),
     description: String(description).trim(),
-    batchId,
     deadline: parseDate(deadline, 'deadline'),
+    courseId,
   });
 
   return assignment;
 }
 
-export async function listAssignmentsByBatch(batchId) {
-  validateObjectId(batchId, 'batchId');
+export async function listAssignments(requester = null) {
+  const filter = {};
 
-  const items = await Assignment.find({ batchId })
+  if (requester?.role === 'student') {
+    const requesterEmail = String(requester.email ?? '').trim().toLowerCase();
+    if (!requesterEmail) {
+      throw new AppError('Unauthorized', { statusCode: 401 });
+    }
+
+    const student = await Student.findOne({ email: requesterEmail }).select('courseId').exec();
+    if (!student) {
+      throw new AppError('Student not found', { statusCode: 404 });
+    }
+
+    filter.courseId = student.courseId;
+  }
+
+  const items = await Assignment.find(filter)
+    .populate('courseId', 'courseName')
     .sort({ deadline: 1, createdAt: -1 })
     .exec();
 
   return { items };
+}
+
+export async function deleteAssignment(assignmentId) {
+  validateObjectId(assignmentId, 'assignmentId');
+
+  const deleted = await Assignment.findByIdAndDelete(assignmentId).exec();
+  if (!deleted) {
+    throw new AppError('Assignment not found', { statusCode: 404 });
+  }
+
+  return { deleted: true };
 }
 

@@ -68,22 +68,6 @@ async function main() {
   results.push(courseCreate);
   const courseId = courseCreate.body?.course?._id || courseCreate.body?._id;
 
-  const batchCreate = await call('create-batch', '/api/batches', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeader,
-    },
-    body: JSON.stringify({
-      batchName: 'Smoke Batch',
-      courseId,
-      schedule: 'Mon-Fri 10-11',
-      startDate: new Date(),
-    }),
-  });
-  results.push(batchCreate);
-  const batchId = batchCreate.body?.batch?._id || batchCreate.body?._id;
-
   const studentEmail = randomEmail('student');
   const studentCreate = await call('create-student', '/api/students', {
     method: 'POST',
@@ -96,7 +80,6 @@ async function main() {
       email: studentEmail,
       phone: '9999999999',
       courseId,
-      batchId,
       feesTotal: 2000,
       feesPaid: 0,
       joinDate: new Date(),
@@ -106,14 +89,6 @@ async function main() {
   const studentId = studentCreate.body?.student?._id || studentCreate.body?._id;
 
   results.push(await call('list-students', '/api/students?page=1&limit=10', { headers: authHeader }));
-  results.push(await call('assign-students-to-batch', `/api/batches/${batchId}/students`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...authHeader,
-    },
-    body: JSON.stringify({ studentIds: [studentId] }),
-  }));
 
   results.push(await call('mark-attendance', '/api/attendance', {
     method: 'POST',
@@ -123,13 +98,12 @@ async function main() {
     },
     body: JSON.stringify({
       studentId,
-      batchId,
       date: new Date(),
       status: 'present',
     }),
   }));
 
-  results.push(await call('attendance-by-batch', `/api/attendance/batch/${batchId}`, { headers: authHeader }));
+  results.push(await call('attendance-by-student', `/api/attendance/student/${studentId}`, { headers: authHeader }));
 
   results.push(await call('add-payment', '/api/payments', {
     method: 'POST',
@@ -156,14 +130,13 @@ async function main() {
     body: JSON.stringify({
       title: 'Smoke Assignment',
       description: 'Complete task',
-      batchId,
       deadline: new Date(Date.now() + 86400000),
     }),
   });
   results.push(assignmentCreate);
   const assignmentId = assignmentCreate.body?.assignment?._id || assignmentCreate.body?._id;
 
-  results.push(await call('assignments-by-batch-admin', `/api/assignments/batch/${batchId}`, { headers: authHeader }));
+  results.push(await call('assignments-list-admin', '/api/assignments', { headers: authHeader }));
 
   const webRegister = await call('web-register-student', '/api/auth/register', {
     method: 'POST',
@@ -178,7 +151,7 @@ async function main() {
   const studentToken = webRegister.body?.token;
   const studentAuthHeader = studentToken ? { Authorization: `Bearer ${studentToken}` } : {};
 
-  results.push(await call('assignments-by-batch-student', `/api/assignments/batch/${batchId}`, { headers: studentAuthHeader }));
+  results.push(await call('assignments-list-student', '/api/assignments', { headers: studentAuthHeader }));
   results.push(await call('submission-by-student', '/api/submissions', {
     method: 'POST',
     headers: {

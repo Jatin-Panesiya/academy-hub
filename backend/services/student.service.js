@@ -44,7 +44,7 @@ function parseDate(dateRaw, fieldName) {
   return d;
 }
 
-const createRequiredFields = ['name', 'email', 'phone', 'courseId', 'batchId', 'feesTotal', 'feesPaid', 'joinDate'];
+const createRequiredFields = ['name', 'email', 'phone', 'courseId', 'feesTotal', 'feesPaid', 'joinDate'];
 const allowedUpdateFields = new Set(createRequiredFields);
 
 function validateObjectId(id, fieldName) {
@@ -71,6 +71,7 @@ export async function listStudents({ page, limit, search }) {
   const [total, items] = await Promise.all([
     Student.countDocuments(filter),
     Student.find(filter)
+      .populate('courseId', 'courseName')
       .sort({ createdAt: -1 })
       .skip(skip)
       .limit(limitNum)
@@ -93,7 +94,6 @@ export async function createStudent(payload) {
   }
 
   validateObjectId(payload.courseId, 'courseId');
-  validateObjectId(payload.batchId, 'batchId');
 
   const joinDate = parseDate(payload.joinDate, 'joinDate');
 
@@ -111,7 +111,6 @@ export async function createStudent(payload) {
       email,
       phone: String(payload.phone).trim(),
       courseId: payload.courseId,
-      batchId: payload.batchId,
       feesTotal: payload.feesTotal,
       feesPaid: payload.feesPaid,
       joinDate,
@@ -165,10 +164,6 @@ export async function updateStudent(studentId, payload) {
   if (payload.courseId !== undefined) {
     validateObjectId(payload.courseId, 'courseId');
     update.courseId = payload.courseId;
-  }
-  if (payload.batchId !== undefined) {
-    validateObjectId(payload.batchId, 'batchId');
-    update.batchId = payload.batchId;
   }
   if (payload.feesTotal !== undefined) update.feesTotal = payload.feesTotal;
   if (payload.feesPaid !== undefined) update.feesPaid = payload.feesPaid;

@@ -23,3 +23,8 @@ export async function resetStudentPassword(id) {
   return res.data;
 }
 
+export async function deleteStudent(id) {
+  const res = await api.delete(`/api/students/${id}`);
+  return res.data;
+}
+

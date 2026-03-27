@@ -16,13 +16,13 @@ const AssignmentSchema = new Schema(
       trim: true,
       maxlength: 5000,
     },
-    batchId: {
-      type: Schema.Types.ObjectId,
-      ref: 'Batch',
-      required: true,
-    },
     deadline: {
       type: Date,
+      required: true,
+    },
+    courseId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Course',
       required: true,
     },
   },

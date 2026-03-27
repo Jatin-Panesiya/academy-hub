@@ -5,8 +5,13 @@ export async function createAssignment(payload) {
   return res.data?.assignment ?? res.data;
 }
 
-export async function getAssignmentsByBatch(batchId) {
-  const res = await api.get(`/api/assignments/batch/${batchId}`);
+export async function getAssignments() {
+  const res = await api.get('/api/assignments');
   return res.data?.items ?? [];
+}
+
+export async function deleteAssignment(id) {
+  const res = await api.delete(`/api/assignments/${id}`);
+  return res.data;
 }
 

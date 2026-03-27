@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router-dom';
 
 import StatCard from '../../components/StatCard.jsx';
-import { fetchBatches, fetchCourses } from '../../services/catalogApi.js';
+import { fetchCourses } from '../../services/catalogApi.js';
 import { createStudent, updateStudent } from '../../services/studentsApi.js';
 
 function formatDateInput(dateRaw) {
@@ -35,7 +35,6 @@ export default function StudentForm() {
   const [loadingCatalog, setLoadingCatalog] = useState(false);
   const [catalogError, setCatalogError] = useState('');
   const [courses, setCourses] = useState([]);
-  const [batches, setBatches] = useState([]);
 
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState('');
@@ -47,7 +46,6 @@ export default function StudentForm() {
     email: '',
     phone: '',
     courseId: '',
-    batchId: '',
     feesTotal: '',
     feesPaid: '',
     joinDate: '',
@@ -60,10 +58,9 @@ export default function StudentForm() {
       setLoadingCatalog(true);
       setCatalogError('');
       try {
-        const [coursesRes, batchesRes] = await Promise.all([fetchCourses({ page: 1, limit: 100 }), fetchBatches({ page: 1, limit: 100 })]);
+        const [coursesRes] = await Promise.all([fetchCourses({ page: 1, limit: 100 })]);
         if (!mounted) return;
         setCourses(Array.isArray(coursesRes) ? coursesRes : []);
-        setBatches(Array.isArray(batchesRes) ? batchesRes : []);
       } catch (err) {
         setCatalogError(err?.response?.data?.error?.message ?? err?.message ?? 'Failed to load catalog');
       } finally {
@@ -86,32 +83,13 @@ export default function StudentForm() {
       email: passedStudent.email ?? '',
       phone: passedStudent.phone ?? '',
       courseId: extractId(passedStudent.courseId),
-      batchId: extractId(passedStudent.batchId),
       feesTotal: passedStudent.feesTotal ?? '',
       feesPaid: passedStudent.feesPaid ?? '',
       joinDate: formatDateInput(passedStudent.joinDate),
     });
   }, [isEdit, passedStudent]);
 
-  const availableBatches = useMemo(() => {
-    const selectedCourseId = form.courseId;
-    if (!selectedCourseId) return batches;
-
-    return batches.filter((b) => {
-      const batchCourseId = b.courseId?._id ?? b.courseId?.id ?? b.courseId;
-      return String(batchCourseId) === String(selectedCourseId);
-    });
-  }, [batches, form.courseId]);
-
-  useEffect(() => {
-    // If course changes and current batch no longer belongs to it, clear batch selection.
-    if (loadingCatalog) return;
-    if (!batches.length) return;
-    if (!form.batchId) return;
-    const stillValid = availableBatches.some((b) => String(b._id) === String(form.batchId));
-    if (!stillValid) setForm((f) => ({ ...f, batchId: '' }));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [availableBatches, loadingCatalog, batches.length]);
+  // Batch selection removed: student is now attached directly to a course.
 
   function validate() {
     const errors = {};
@@ -125,7 +103,6 @@ export default function StudentForm() {
     if (!form.phone.trim()) errors.phone = 'Phone is required.';
 
     if (!isValidObjectId(form.courseId)) errors.courseId = 'Select a valid course.';
-    if (!isValidObjectId(form.batchId)) errors.batchId = 'Select a valid batch.';
 
     const feesTotalNum = Number(form.feesTotal);
     const feesPaidNum = Number(form.feesPaid);
@@ -159,7 +136,6 @@ export default function StudentForm() {
         email: form.email.trim(),
         phone: form.phone.trim(),
         courseId: form.courseId,
-        batchId: form.batchId,
         feesTotal: Number(form.feesTotal),
         feesPaid: Number(form.feesPaid),
         joinDate: new Date(form.joinDate),
@@ -183,7 +159,6 @@ export default function StudentForm() {
           email: '',
           phone: '',
           courseId: '',
-          batchId: '',
           feesTotal: '',
           feesPaid: '',
           joinDate: '',
@@ -210,7 +185,7 @@ export default function StudentForm() {
         <button
           type="button"
           onClick={() => navigate('/admin/students')}
-          className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800"
+          className="rounded-lg bg-gray-100 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 border border-gray-200"
         >
           Back to list
         </button>
@@ -242,7 +217,7 @@ export default function StudentForm() {
           <button
             type="button"
             onClick={() => navigate('/admin/students')}
-            className="mt-3 rounded bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-800"
+            className="mt-3 rounded-lg bg-gray-100 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-200 border border-gray-200"
           >
             Back to list
           </button>
@@ -256,7 +231,7 @@ export default function StudentForm() {
               <div className="space-y-1">
                 <label className="text-sm text-slate-700">Name</label>
                 <input
-                  className="w-full rounded bg-white px-3 py-2 text-sm outline-none ring-1 ring-slate-200 focus:ring-slate-500"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500"
                   value={form.name}
                   onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                 />
@@ -266,7 +241,7 @@ export default function StudentForm() {
               <div className="space-y-1">
                 <label className="text-sm text-slate-700">Email</label>
                 <input
-                  className="w-full rounded bg-white px-3 py-2 text-sm outline-none ring-1 ring-slate-200 focus:ring-slate-500"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500"
                   value={form.email}
                   onChange={(e) => setForm((f) => ({ ...f, email: e.target.value }))}
                 />
@@ -277,21 +252,21 @@ export default function StudentForm() {
             <div className="space-y-1">
               <label className="text-sm text-slate-700">Phone</label>
               <input
-                className="w-full rounded bg-white px-3 py-2 text-sm outline-none ring-1 ring-slate-200 focus:ring-slate-500"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500"
                 value={form.phone}
                 onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
               />
               {fieldErrors.phone ? <div className="text-xs text-red-600">{fieldErrors.phone}</div> : null}
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-1">
               <div className="space-y-1">
                 <label className="text-sm text-slate-700">Course</label>
                 <select
-                  className="w-full rounded bg-white px-3 py-2 text-sm outline-none ring-1 ring-slate-200 focus:ring-slate-500"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500"
                   value={form.courseId}
                   onChange={(e) => {
-                    setForm((f) => ({ ...f, courseId: e.target.value, batchId: '' }));
+                    setForm((f) => ({ ...f, courseId: e.target.value }));
                   }}
                   disabled={loadingCatalog}
                 >
@@ -304,33 +279,13 @@ export default function StudentForm() {
                 </select>
                 {fieldErrors.courseId ? <div className="text-xs text-red-600">{fieldErrors.courseId}</div> : null}
               </div>
-
-              <div className="space-y-1">
-                <label className="text-sm text-slate-700">Batch</label>
-                <select
-                  className="w-full rounded bg-white px-3 py-2 text-sm outline-none ring-1 ring-slate-200 focus:ring-slate-500"
-                  value={form.batchId}
-                  onChange={(e) => setForm((f) => ({ ...f, batchId: e.target.value }))}
-                  disabled={loadingCatalog || !form.courseId}
-                >
-                  <option value="">
-                    {loadingCatalog ? 'Loading…' : !form.courseId ? 'Select course first' : 'Select batch'}
-                  </option>
-                  {availableBatches.map((b) => (
-                    <option key={b._id} value={b._id}>
-                      {b.batchName ?? b._id}
-                    </option>
-                  ))}
-                </select>
-                {fieldErrors.batchId ? <div className="text-xs text-red-600">{fieldErrors.batchId}</div> : null}
-              </div>
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-1">
                 <label className="text-sm text-slate-700">Fees Total</label>
                 <input
-                  className="w-full rounded bg-white px-3 py-2 text-sm outline-none ring-1 ring-slate-200 focus:ring-slate-500"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500"
                   type="number"
                   step="0.01"
                   value={form.feesTotal}
@@ -341,7 +296,7 @@ export default function StudentForm() {
               <div className="space-y-1">
                 <label className="text-sm text-slate-700">Fees Paid</label>
                 <input
-                  className="w-full rounded bg-white px-3 py-2 text-sm outline-none ring-1 ring-slate-200 focus:ring-slate-500"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500"
                   type="number"
                   step="0.01"
                   value={form.feesPaid}
@@ -354,7 +309,7 @@ export default function StudentForm() {
             <div className="space-y-1">
               <label className="text-sm text-slate-700">Join Date</label>
               <input
-                className="w-full rounded bg-white px-3 py-2 text-sm outline-none ring-1 ring-slate-200 focus:ring-slate-500"
+                  className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900 outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500"
                 type="date"
                 value={form.joinDate}
                 onChange={(e) => setForm((f) => ({ ...f, joinDate: e.target.value }))}
@@ -366,7 +321,7 @@ export default function StudentForm() {
               <button
                 type="submit"
                 disabled={submitting || (isEdit && !passedStudent)}
-                className="w-full rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50"
+                className="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-50 focus:ring-4 focus:ring-blue-500/20"
               >
                 {submitting ? (isEdit ? 'Saving…' : 'Creating…') : isEdit ? 'Save Changes' : 'Create Student'}
               </button>
@@ -387,10 +342,6 @@ export default function StudentForm() {
                 {form.email || '—'}
               </div>
               <div>
-                <span className="text-slate-500">Batch: </span>
-                {form.batchId ? `…${String(form.batchId).slice(-6)}` : '—'}
-              </div>
-              <div>
                 <span className="text-slate-500">Pending Fees: </span>
                 {(() => {
                   const totalNum = Number(form.feesTotal);
@@ -405,7 +356,7 @@ export default function StudentForm() {
           <div className="rounded border border-slate-200 bg-white/70 p-4">
             <div className="text-xs text-slate-500">Tip</div>
             <div className="mt-1 text-sm text-slate-600">
-              You must pick a Course and Batch. The form filters batches based on the selected course.
+              You must pick a Course.
             </div>
           </div>
 

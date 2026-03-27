@@ -1,35 +1,19 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { useAuth } from '../../hooks/useAuth.js';
 import { api } from '../../services/api.js';
 import { submitAssignment } from '../../services/submissionsApi.js';
-
-function uniq(arr) {
-  return [...new Set(arr)];
-}
-
-function isValidObjectId(id) {
-  return /^[a-fA-F0-9]{24}$/.test(String(id ?? '').trim());
-}
-
-function formatDate(d) {
-  const date = d instanceof Date ? d : new Date(d);
-  if (Number.isNaN(date.getTime())) return '';
-  return date.toLocaleDateString();
-}
-
-function getBatchLabel(batchRef) {
-  if (!batchRef) return '';
-  if (typeof batchRef === 'object') {
-    if (batchRef.batchName) return batchRef.batchName;
-    if (batchRef.courseId?.courseName) return batchRef.courseId.courseName;
-    if (batchRef._id) return String(batchRef._id);
-  }
-  return String(batchRef);
-}
+import Card from '../../components/ui/Card.jsx';
+import Button from '../../components/ui/Button.jsx';
+import Input from '../../components/ui/Input.jsx';
+import { Skeleton } from '../../components/ui/Skeleton.jsx';
+import EmptyState from '../../components/ui/EmptyState.jsx';
+import { useToast } from '../../components/ui/ToastProvider.jsx';
+import { formatDisplayDate } from '../../utils/dateFormat.js';
 
 export default function StudentDashboard() {
   const { user } = useAuth();
+  const toast = useToast();
   const studentId = user?.id;
 
   const [loading, setLoading] = useState(true);
@@ -43,23 +27,13 @@ export default function StudentDashboard() {
 
   const [attendance, setAttendance] = useState([]);
 
-  const availableBatches = useMemo(() => {
-    const list = attendance.map((a) => ({
-      id: String(a.batchId?._id ?? a.batchId ?? ''),
-      label: getBatchLabel(a.batchId),
-    }));
-    const uniqueIds = uniq(list.map((x) => x.id).filter(Boolean));
-    return uniqueIds.map((id) => list.find((x) => x.id === id) ?? { id, label: id });
-  }, [attendance]);
-
-  const [selectedBatchId, setSelectedBatchId] = useState('');
-
   const [assignmentsLoading, setAssignmentsLoading] = useState(false);
   const [assignmentsError, setAssignmentsError] = useState('');
   const [assignments, setAssignments] = useState([]);
   const [submissionError, setSubmissionError] = useState('');
   const [submissionLoading, setSubmissionLoading] = useState(false);
   const [submissionForm, setSubmissionForm] = useState({ assignmentId: '', fileUrl: '' });
+  const [isSubmitModalOpen, setIsSubmitModalOpen] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -98,13 +72,6 @@ export default function StudentDashboard() {
           const attRes = attResult.value;
           const items = Array.isArray(attRes.data?.items) ? attRes.data.items : [];
           setAttendance(items);
-
-          const batchIdFromAttendance =
-            items
-              .map((a) => String(a.batchId?._id ?? a.batchId ?? ''))
-              .filter(Boolean)[0] ?? '';
-
-          setSelectedBatchId((prev) => prev || batchIdFromAttendance);
         } else {
           const attendanceError =
             attResult.reason?.response?.data?.error?.message ?? attResult.reason?.message ?? 'Failed to load attendance';
@@ -130,17 +97,13 @@ export default function StudentDashboard() {
   useEffect(() => {
     let mounted = true;
     async function loadAssignments() {
+      if (!studentId) return;
       setAssignmentsError('');
       setAssignmentsLoading(true);
       setAssignments([]);
 
-      if (!selectedBatchId || !isValidObjectId(selectedBatchId)) {
-        setAssignmentsLoading(false);
-        return;
-      }
-
       try {
-        const res = await api.get(`/api/assignments/batch/${selectedBatchId}`);
+        const res = await api.get('/api/assignments');
         if (!mounted) return;
         setAssignments(res.data?.items ?? []);
       } catch (err) {
@@ -155,24 +118,17 @@ export default function StudentDashboard() {
     return () => {
       mounted = false;
     };
-  }, [selectedBatchId]);
+  }, [studentId]);
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Student Dashboard</h1>
-        <p className="mt-1 text-sm text-slate-600">View attendance, assignments, and fee status.</p>
-      </div>
-
-      {error ? <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div> : null}
-
       {loading ? (
         <div className="rounded border border-slate-200 bg-white/70 p-4 text-sm text-slate-600">Loading…</div>
       ) : (
         <>
           <section className="rounded border border-slate-200 bg-white/70 p-4">
             <h2 className="text-base font-semibold">Fee Status</h2>
-            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
               <div className="rounded border border-slate-200 bg-slate-100/60 p-4">
                 <div className="text-xs text-slate-500">Paid</div>
                 <div className="mt-2 text-2xl font-semibold">{feeSummary.paidTotal}</div>
@@ -181,29 +137,28 @@ export default function StudentDashboard() {
                 <div className="text-xs text-slate-500">Pending</div>
                 <div className="mt-2 text-2xl font-semibold">{feeSummary.pendingFees}</div>
               </div>
-              <div className="sm:col-span-2 rounded border border-slate-200 bg-slate-100/60 p-4">
-                <div className="text-xs text-slate-500">Student</div>
-                <div className="mt-2 font-medium">{feeSummary.student?.name ?? user?.name ?? '—'}</div>
-                <div className="text-sm text-slate-600">{feeSummary.student?.email ?? user?.email ?? ''}</div>
+              <div className="rounded border border-slate-200 bg-slate-100/60 p-4">
+                <div className="text-xs text-slate-500">Course Details</div>
+                <div className="mt-2 font-medium">{feeSummary.student?.course?.courseName ?? '—'}</div>
+                <div className="text-sm text-slate-600">
+                  Duration: {feeSummary.student?.course?.duration ?? '—'} months
+                </div>
+                <div className="text-sm text-slate-600">
+                  Course Fees: {feeSummary.student?.course?.fees ?? '—'}
+                </div>
               </div>
             </div>
           </section>
 
-          <section className="rounded border border-slate-200 bg-white/70 p-4">
+          <Card className="p-5">
             <h2 className="text-base font-semibold">Attendance</h2>
 
-            <div className="mt-3">
-              <div className="text-xs text-slate-500">
-                Showing latest records {attendance.length ? `(${attendance.length})` : ''}
-              </div>
-            </div>
 
-            <div className="mt-4 overflow-hidden rounded border border-slate-200">
+            <div className="mt-4 overflow-hidden rounded-lg border border-gray-200">
               <div className="max-h-[320px] overflow-auto">
                 <table className="min-w-[720px] w-full border-collapse">
-                  <thead className="bg-slate-100/70">
+                  <thead className="bg-[#F3F4F6]">
                     <tr className="text-left text-xs text-slate-500">
-                      <th className="px-4 py-3 font-medium">Batch</th>
                       <th className="px-4 py-3 font-medium">Status</th>
                       <th className="px-4 py-3 font-medium">Date</th>
                     </tr>
@@ -211,19 +166,16 @@ export default function StudentDashboard() {
                   <tbody>
                     {attendance.length === 0 ? (
                       <tr>
-                        <td colSpan={3} className="px-4 py-6 text-sm text-slate-600">
-                          No attendance records yet.
+                        <td colSpan={2} className="px-4 py-6 text-sm text-slate-600">
+                          <EmptyState title="No attendance records" message="Once attendance is marked, it will appear here." />
                         </td>
                       </tr>
                     ) : (
                       attendance.map((a) => (
-                        <tr key={a._id} className="border-t border-slate-200">
-                          <td className="border-t border-slate-200 px-4 py-3 text-sm text-slate-900">
-                            {a.batchId?.batchName ?? a.batchId?.courseId ?? a.batchId?._id ?? '—'}
-                          </td>
-                          <td className="border-t border-slate-200 px-4 py-3 text-sm text-slate-900">{a.status}</td>
-                          <td className="border-t border-slate-200 px-4 py-3 text-sm text-slate-600">
-                            {formatDate(a.date)}
+                        <tr key={a._id} className="border-t border-gray-200 hover:bg-gray-50 transition-colors">
+                          <td className="px-4 py-3 text-sm text-slate-900">{a.status}</td>
+                          <td className="px-4 py-3 text-sm text-slate-600">
+                            {formatDisplayDate(a.date)}
                           </td>
                         </tr>
                       ))
@@ -233,88 +185,22 @@ export default function StudentDashboard() {
               </div>
             </div>
 
-            <div className="mt-4 rounded border border-slate-200 bg-slate-50 p-4">
-              <h3 className="text-sm font-semibold">Submit Assignment</h3>
-              <div className="mt-1 text-xs text-slate-500">Student-only submission endpoint.</div>
+          </Card>
 
-              <form
-                className="mt-3 grid gap-3 md:grid-cols-3"
-                onSubmit={async (e) => {
-                  e.preventDefault();
-                  setSubmissionError('');
-                  setSubmissionLoading(true);
-                  try {
-                    await submitAssignment({
-                      assignmentId: submissionForm.assignmentId.trim(),
-                      fileUrl: submissionForm.fileUrl.trim(),
-                    });
-                    setSubmissionForm({ assignmentId: '', fileUrl: '' });
-                    alert('Assignment submitted');
-                  } catch (err) {
-                    setSubmissionError(
-                      err?.response?.data?.error?.message ?? err?.message ?? 'Failed to submit assignment'
-                    );
-                  } finally {
-                    setSubmissionLoading(false);
-                  }
-                }}
-              >
-                <select
-                  className="rounded bg-white px-3 py-2 text-sm outline-none ring-1 ring-slate-200 focus:ring-slate-500"
-                  value={submissionForm.assignmentId}
-                  onChange={(e) => setSubmissionForm((f) => ({ ...f, assignmentId: e.target.value }))}
-                >
-                  <option value="">Select assignment</option>
-                  {assignments.map((a) => (
-                    <option key={a._id} value={a._id}>
-                      {a.title}
-                    </option>
-                  ))}
-                </select>
-                <input
-                  className="rounded bg-white px-3 py-2 text-sm outline-none ring-1 ring-slate-200 focus:ring-slate-500 md:col-span-2"
-                  placeholder="File URL"
-                  value={submissionForm.fileUrl}
-                  onChange={(e) => setSubmissionForm((f) => ({ ...f, fileUrl: e.target.value }))}
-                />
-                <button
-                  type="submit"
-                  disabled={submissionLoading}
-                  className="rounded bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-60"
-                >
-                  {submissionLoading ? 'Submitting…' : 'Submit'}
-                </button>
-              </form>
-              {submissionError ? (
-                <div className="mt-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
-                  {submissionError}
-                </div>
-              ) : null}
-            </div>
-          </section>
-
-          <section className="rounded border border-slate-200 bg-white/70 p-4">
+          <Card className="p-5">
             <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
               <div>
                 <h2 className="text-base font-semibold">Assignments</h2>
-                <p className="mt-1 text-sm text-slate-600">Loaded for your selected batch.</p>
               </div>
-              <div className="space-y-1 sm:min-w-[320px]">
-                <label className="text-xs text-slate-500">Batch</label>
-                <select
-                  className="w-full rounded bg-white px-3 py-2 text-sm outline-none ring-1 ring-slate-200 focus:ring-slate-500"
-                  value={selectedBatchId}
-                  onChange={(e) => setSelectedBatchId(e.target.value)}
-                  disabled={availableBatches.length === 0}
-                >
-                  {availableBatches.length === 0 ? <option value="">No batches found in attendance</option> : null}
-                  {availableBatches.map((batch) => (
-                    <option key={batch.id} value={batch.id}>
-                      {batch.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+              <Button
+                type="button"
+                onClick={() => {
+                  setSubmissionError('');
+                  setIsSubmitModalOpen(true);
+                }}
+              >
+                Submit Assignment
+              </Button>
             </div>
 
             {assignmentsError ? (
@@ -323,10 +209,10 @@ export default function StudentDashboard() {
               </div>
             ) : null}
 
-            <div className="mt-4 overflow-hidden rounded border border-slate-200">
+            <div className="mt-4 overflow-hidden rounded-lg border border-gray-200">
               <div className="max-h-[320px] overflow-auto">
                 <table className="min-w-[720px] w-full border-collapse">
-                  <thead className="bg-slate-100/70">
+                  <thead className="bg-[#F3F4F6]">
                     <tr className="text-left text-xs text-slate-500">
                       <th className="px-4 py-3 font-medium">Title</th>
                       <th className="px-4 py-3 font-medium">Deadline</th>
@@ -334,26 +220,34 @@ export default function StudentDashboard() {
                   </thead>
                   <tbody>
                     {assignmentsLoading ? (
-                      <tr>
-                        <td colSpan={2} className="px-4 py-6 text-sm text-slate-600">
-                          Loading…
-                        </td>
-                      </tr>
+                      Array.from({ length: 5 }).map((_, i) => (
+                        <tr key={`sk-${i}`} className="border-t border-gray-200 text-sm">
+                          <td className="px-4 py-3">
+                            <Skeleton className="h-4 w-44" />
+                            <div className="mt-2">
+                              <Skeleton className="h-3 w-56" />
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            <Skeleton className="h-4 w-28" />
+                          </td>
+                        </tr>
+                      ))
                     ) : assignments.length === 0 ? (
                       <tr>
                         <td colSpan={2} className="px-4 py-6 text-sm text-slate-600">
-                          {availableBatches.length === 0 ? 'No batch context found for this student yet.' : 'No assignments found for this batch.'}
+                          <EmptyState title="No assignments found" message="Check back later when assignments are published." />
                         </td>
                       </tr>
                     ) : (
                       assignments.map((a) => (
-                        <tr key={a._id} className="border-t border-slate-200">
-                          <td className="border-t border-slate-200 px-4 py-3 text-sm text-slate-900">
+                        <tr key={a._id} className="border-t border-gray-200 hover:bg-gray-50 transition-colors">
+                          <td className="px-4 py-3 text-sm text-slate-900">
                             <div className="font-medium">{a.title}</div>
                             <div className="text-xs text-slate-500">{a.description}</div>
                           </td>
-                          <td className="border-t border-slate-200 px-4 py-3 text-sm text-slate-600">
-                            {formatDate(a.deadline)}
+                          <td className="px-4 py-3 text-sm text-slate-600">
+                            {formatDisplayDate(a.deadline)}
                           </td>
                         </tr>
                       ))
@@ -362,7 +256,78 @@ export default function StudentDashboard() {
                 </table>
               </div>
             </div>
-          </section>
+          </Card>
+
+          {isSubmitModalOpen ? (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+              <div className="w-full max-w-xl rounded-xl border border-gray-200 bg-white p-5 shadow-lg">
+                <div className="flex items-center justify-between gap-3">
+                  <h3 className="text-base font-semibold">Submit Assignment</h3>
+                  <button
+                    type="button"
+                    onClick={() => setIsSubmitModalOpen(false)}
+                    className="rounded-md text-2xl text-slate-600 hover:bg-slate-100"
+                    aria-label="Close submit assignment modal"
+                  >
+                    &times;
+                  </button>
+                </div>
+
+                <form
+                  className="mt-4 grid gap-3"
+                  onSubmit={async (e) => {
+                    e.preventDefault();
+                    setSubmissionError('');
+                    setSubmissionLoading(true);
+                    try {
+                      await submitAssignment({
+                        assignmentId: submissionForm.assignmentId.trim(),
+                        fileUrl: submissionForm.fileUrl.trim(),
+                      });
+                      setSubmissionForm({ assignmentId: '', fileUrl: '' });
+                      setIsSubmitModalOpen(false);
+                      toast.success({ title: 'Submitted', message: 'Assignment submitted successfully.' });
+                    } catch (err) {
+                      const msg =
+                        err?.response?.data?.error?.message ?? err?.message ?? 'Failed to submit assignment';
+                      setSubmissionError(msg);
+                      toast.error({ title: 'Submit failed', message: msg });
+                    } finally {
+                      setSubmissionLoading(false);
+                    }
+                  }}
+                >
+                  <select
+                    className="rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500"
+                    value={submissionForm.assignmentId}
+                    onChange={(e) => setSubmissionForm((f) => ({ ...f, assignmentId: e.target.value }))}
+                  >
+                    <option value="">Select assignment</option>
+                    {assignments.map((a) => (
+                      <option key={a._id} value={a._id}>
+                        {a.title}
+                      </option>
+                    ))}
+                  </select>
+                  <Input
+                    placeholder="File URL"
+                    value={submissionForm.fileUrl}
+                    onChange={(e) => setSubmissionForm((f) => ({ ...f, fileUrl: e.target.value }))}
+                  />
+                  <div className="flex justify-end">
+                    <Button type="submit" disabled={submissionLoading || !submissionForm.assignmentId || !submissionForm.fileUrl} variant="primary">
+                      {submissionLoading ? 'Submitting…' : 'Submit'}
+                    </Button>
+                  </div>
+                </form>
+                {submissionError ? (
+                  <div className="mt-3 rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">
+                    {submissionError}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ) : null}
         </>
       )}
     </div>

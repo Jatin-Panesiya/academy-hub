@@ -7,10 +7,3 @@ export async function fetchCourses({ page = 1, limit = 100, search = '' } = {}) 
   return res.data.items ?? [];
 }
 
-export async function fetchBatches({ page = 1, limit = 100, search = '' } = {}) {
-  const params = { page, limit };
-  if (search) params.search = search;
-  const res = await api.get('/api/batches', { params });
-  return res.data.items ?? [];
-}
-

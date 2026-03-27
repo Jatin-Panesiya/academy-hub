@@ -9,11 +9,6 @@ const AttendanceSchema = new Schema(
       ref: 'Student',
       required: true,
     },
-    batchId: {
-      type: Schema.Types.ObjectId,
-      ref: 'Batch',
-      required: true,
-    },
     date: {
       type: Date,
       required: true,
@@ -30,8 +25,8 @@ const AttendanceSchema = new Schema(
   }
 );
 
-// Index to speed up common lookups (e.g., attendance history for a student/batch).
-AttendanceSchema.index({ studentId: 1, batchId: 1, date: 1 }, { unique: false });
+// Index to speed up attendance lookups for a student per day.
+AttendanceSchema.index({ studentId: 1, date: 1 }, { unique: false });
 
 export default mongoose.model('Attendance', AttendanceSchema);
 

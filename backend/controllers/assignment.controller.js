@@ -1,5 +1,5 @@
 import { AppError } from '../utils/appError.js';
-import { createAssignment, listAssignmentsByBatch } from '../services/assignment.service.js';
+import { createAssignment, deleteAssignment, listAssignments } from '../services/assignment.service.js';
 
 export async function create(req, res, next) {
   try {
@@ -11,11 +11,20 @@ export async function create(req, res, next) {
   }
 }
 
-export async function listByBatch(req, res, next) {
+export async function list(req, res, next) {
+  try {
+    const result = await listAssignments(req.user ?? null);
+    return res.status(200).json(result);
+  } catch (err) {
+    return next(err);
+  }
+}
+
+export async function remove(req, res, next) {
   try {
     const { id } = req.params ?? {};
-    if (!id) throw new AppError('Missing batch id parameter.', { statusCode: 400 });
-    const result = await listAssignmentsByBatch(id);
+    if (!id) throw new AppError('Missing assignment id parameter.', { statusCode: 400 });
+    const result = await deleteAssignment(id);
     return res.status(200).json(result);
   } catch (err) {
     return next(err);
